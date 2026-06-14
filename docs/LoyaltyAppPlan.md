@@ -45,10 +45,24 @@ lib/
 │   └── reward.dart              # Reward definition
 │
 ├── services/
-│   ├── auth_service.dart        # Firebase Auth wrapper
-│   ├── user_service.dart        # Firestore CRUD for users
-│   ├── points_service.dart      # Add/deduct points logic
-│   └── reward_service.dart      # Reward list + redemption logic
+│   ├── contracts/               # Abstract interfaces (backend-neutral)
+│   │   ├── auth_repository.dart
+│   │   ├── user_repository.dart
+│   │   ├── points_repository.dart
+│   │   ├── reward_repository.dart
+│   │   └── redemption_repository.dart
+│   ├── firebase/                # Firebase implementations (MVP)
+│   │   ├── firebase_auth_repository.dart
+│   │   ├── firebase_user_repository.dart
+│   │   ├── firebase_points_repository.dart
+│   │   ├── firebase_reward_repository.dart
+│   │   └── firebase_redemption_repository.dart
+│   └── api/                     # Future: Node.js API implementations
+│       ├── api_auth_repository.dart
+│       ├── api_user_repository.dart
+│       ├── api_points_repository.dart
+│       ├── api_reward_repository.dart
+│       └── api_redemption_repository.dart
 │
 ├── providers/
 │   ├── auth_provider.dart       # Riverpod: current auth state + role
@@ -79,7 +93,8 @@ lib/
     └── reward_card.dart         # Reward display card
 
 docs/
-└── LoyaltyAppPlan.md
+├── LoyaltyAppPlan.md
+└── ProjectMemory.md
 
 test/
 └── widget_test.dart
@@ -398,7 +413,55 @@ dev_dependencies:
 
 ---
 
-## 13. Project Phase Board
+## 13. Backend Replacement Strategy
+
+Firebase is chosen for MVP speed, not as a permanent dependency. The service layer must be built so the backend can be swapped later without rewriting any screen or widget.
+
+1. **Firebase is the MVP backend** — fast to set up, not a long-term lock-in.
+2. **Future backend may be Node.js REST API + MySQL** — build the code to allow this swap.
+3. **Screens and widgets must never import Firebase** — no `FirebaseAuth`, `FirebaseFirestore`, or `DocumentSnapshot` in any screen or widget file.
+4. **All backend access goes through repository classes:**
+   - `AuthRepository` — sign in, sign out, register, auth state stream
+   - `UserRepository` — get user, search by phone, stream user profile
+   - `PointsRepository` — add points (atomic write)
+   - `RewardRepository` — list rewards, get single reward
+   - `RedemptionRepository` — create redemption, fulfil, list pending
+5. **Services expose app-level method names** — e.g. `getUser(uid)`, not `FirebaseFirestore.instance.doc('users/$uid').get()`.
+6. **Each repository has a contract and an implementation:**
+   - `services/contracts/` — abstract Dart class (the interface)
+   - `services/firebase/` — Firebase implementation (used in MVP)
+   - `services/api/` — future Node.js API implementation
+7. **Model classes are backend-neutral** — `AppUser`, `PointsTransaction`, `Reward`, `Redemption` use only Dart types.
+8. **Firebase types must never leave the service layer** — convert `DocumentSnapshot` and Firebase `User` to model classes at the repository boundary.
+9. **Points mutation and redemption logic stay inside service methods** — never computed in screens or providers.
+10. **Folder structure supports swapping the implementation:**
+
+```
+lib/
+  services/
+    contracts/
+      auth_repository.dart
+      user_repository.dart
+      points_repository.dart
+      reward_repository.dart
+      redemption_repository.dart
+    firebase/
+      firebase_auth_repository.dart
+      firebase_user_repository.dart
+      firebase_points_repository.dart
+      firebase_reward_repository.dart
+      firebase_redemption_repository.dart
+    api/
+      api_auth_repository.dart
+      api_user_repository.dart
+      api_points_repository.dart
+      api_reward_repository.dart
+      api_redemption_repository.dart
+```
+
+---
+
+## 14. Project Phase Board
 
 > **Phase 1 — Planning** · Status: `Done`
 >
@@ -426,11 +489,14 @@ dev_dependencies:
 
 > **Phase 3 — Foundation** · Status: `Not Started`
 >
-> Goal: Add packages, folder structure, theme, model classes, services, providers, and routing.
+> Goal: Add packages, folder structure, theme, model classes, service contracts/adapters, providers, and routing.
 >
 > Output:
 > - [ ] `pubspec.yaml` updated with all packages
 > - [ ] Firebase initialized in `main.dart`
+> - [ ] Service contracts (abstract interfaces) created in `services/contracts/`
+> - [ ] Firebase implementations created in `services/firebase/`
+> - [ ] `api/` folder stubbed for future Node.js implementation
 > - [ ] Riverpod providers ready
 > - [ ] GoRouter role guard ready
 
@@ -474,13 +540,14 @@ dev_dependencies:
 
 > **Phase 7 — Security** · Status: `Not Started`
 >
-> Goal: Write and deploy Firestore security rules to protect points and role fields.
+> Goal: Write and deploy Firestore security rules to protect points and role fields. Document future API security approach for post-MVP Node.js backend.
 >
 > Output:
 > - [ ] Customers cannot write to `points` field directly
 > - [ ] Only staff can create `transactions`
 > - [ ] `rewards` collection is read-only from client
 > - [ ] `redemptions` protected — only staff can update
+> - [ ] Future API security plan documented (JWT bearer tokens, server-side point validation, role middleware)
 
 ---
 
@@ -496,6 +563,6 @@ dev_dependencies:
 
 ---
 
-*Last updated: 2026-06-15 — Phase Board added. Planning Phase done. Setup Phase in progress.*
+*Last updated: 2026-06-15 — Backend Replacement Strategy added (Section 13). Service layer abstraction (contracts/firebase/api) documented. Phase Board moved to Section 14. Planning Phase done. Setup Phase in progress.*
 
 *End of MVP Plan*
